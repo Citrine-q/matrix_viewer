@@ -25,13 +25,9 @@ export function activate(context: vscode.ExtensionContext) {
     let disposable = vscode.commands.registerCommand('matrix-viewer.viewMatrix', async (args) => {
         let variableName: string | undefined;
 
+        // パターン1: 変数ビュー (Variables View) からの右クリック
         if (args && args.variable) {
             variableName = args.variable.evaluateName || args.variable.name;
-        } else {
-            const editor = vscode.window.activeTextEditor;
-            if (editor && !editor.selection.isEmpty) {
-                variableName = editor.document.getText(editor.selection);
-            }
         }
 
         if (!variableName) {

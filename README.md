@@ -1,50 +1,103 @@
-# C++ Matrix Viewer
+# Matrix Viewer
+日本語は下にあります。
 
-**C++ Matrix Viewer** は、VS Codeでのデバッグ中に、2次元配列や `std::vector<std::vector<T>>` をExcelのような**「2次元の表（グリッド）」**形式で可視化する拡張機能です。
+**Matrix Viewer** is a powerful visualization tool for VS Code that allows you to view 2D arrays, matrices, and vectors as a **Grid / Spreadsheet** during debugging.
 
-標準の「変数ビュー」ではツリー構造で確認しづらい行列データも、このツールを使えば一目で全体像を把握できます。
+It supports multiple languages including **C++, Python, Rust, JavaScript/TypeScript, C#**, and more. It helps you understand complex data structures at a glance, replacing the tedious tree-view inspection.
 
-## ✨ 主な機能 (Features)
+
+
+## ✨ Features
+
+* **⚡ Lazy Loading (Big Data Support):**
+    * Smartly fetches only the rows and columns currently visible.
+    * Handles massive datasets (e.g., 10,000 x 10,000) without freezing the UI.
+* **🌐 Multi-Language Support:**
+    * Works with **C++** (`std::vector`, arrays), **Python** (list of lists), **Rust** (`Vec<Vec<T>>`), **JavaScript**, **C#**, and more.
+    * Adaptive Size Detection: Automatically attempts multiple size-retrieval strategies (`.size()`, `len()`, `.length`, etc.) to find the one that works for the current debug session.
+* **🔄 Live Update & Diff Highlighting:**
+    * Automatically refreshes the table when you step through code (Step Over/Into).
+    * **Highlights changed cells** in yellow, making it easy to track algorithm progress.
+* **👀 Split View:**
+    * Opens in a side panel automatically, so you can see your code and data side-by-side.
+
+## 🚀 Usage
+
+1.  Start a debugging session and hit a breakpoint.
+2.  Open the viewer using one of these methods:
+    * **Context Menu:** Right-click a variable in the "Variables" view and select **"View as Matrix (2D Table)"**.
+    * **Command Palette:** Run `Matrix Viewer: View as Matrix` and enter the variable name (e.g., `grid`, `matrix[0]`).
+
+## 🛠 Supported Languages
+
+This extension attempts to evaluate array sizes using various strategies, making it compatible with:
+
+* **C / C++** (`std::vector`, raw arrays)
+* **Python** (Lists, generic iterables)
+* **Rust** (`Vec`, arrays)
+* **JavaScript / TypeScript** (Arrays)
+* **C#** (List, Arrays)
+* **Java** (Arrays, Lists)
+* *And any language where array size can be accessed via `.size()`, `len()`, or `.length`.*
+
+## 📸 Demo
+
+## ⚠️ Known Limits
+
+* **3D+ Arrays:** Currently supports up to 2 dimensions. 3D arrays may cause errors or display incorrectly.
+* **Object Display:** Cells display the string representation of values. Complex objects might show as `[Object object]` or memory addresses unless they have a clear string representation.
+
+---
+# Matrix Viewer (Japanese)
+
+**Matrix Viewer** は、VS Codeでのデバッグ中に、2次元配列や行列（Matrix）、VectorなどをExcelのような**「2次元の表（グリッド）」**形式で可視化する拡張機能です。
+
+**C++, Python, Rust, JavaScript, C#** など、多くのプログラミング言語に対応しています。標準の「変数ビュー」ではツリー構造で確認しづらい行列データも、このツールを使えば一目で全体像を把握できます。
+
+## ✨ 主な機能
 
 * **⚡ 高速な描画 (Lazy Loading):**
     * 必要な行・列だけを読み込む「遅延読み込み」を採用。
     * **10,000行 x 10,000列** のような巨大なデータでも、フリーズすることなく瞬時に開けます。
-* **🔄 自動更新 & ハイライト:**
+* **🌐 多言語対応:**
+    * **C++** (`std::vector`, 配列), **Python** (リストのリスト), **Rust** (`Vec<Vec<T>>`), **JavaScript**, **C#** などに対応。
+    * サイズ取得の自動化: 配列サイズの取得コマンド (`.size()`, `len()`, `.length` 等) を自動的に試行・特定するため、言語ごとの設定不要で動作します。
+* **🔄 自動更新 & 差分ハイライト:**
     * デバッガでステップ実行（Step Over/Into）を行うと、表の内容が自動的にリフレッシュされます。
     * **値が変化したセルは黄色くハイライト**されるため、アルゴリズムの挙動確認に最適です。
 * **👀 2画面分割:**
     * コードエディタを隠さないよう、自動的に隣のパネル（Split View）で開きます。
-* **🛡️ 安全設計:**
-    * 配列の範囲外アクセスを防ぐリミット機能付き。(生配列は適応外)
 
-## 🚀 使い方 (Usage)
+## 🚀 使い方
 
-1. C++のデバッグセッションを開始し、ブレークポイントで停止させます。
+1. デバッグセッションを開始し、ブレークポイントで停止させます。
 2. 以下のいずれかの方法でビューアを起動します：
-    * **方法A:** 「変数 (Variables)」ビューで変数を右クリックし、**"View as Matrix (2D Table)"** を選択。
-    * **方法B:** エディタ上の変数名を選択して右クリックし、**"View as Matrix (2D Table)"** を選択。
-    * **方法C:** コマンドパレット (`Ctrl+Shift+P`) から `C++ Matrix Viewer: View as Matrix` を実行し、変数名を入力。
+    * **変数ビューから:** 「変数 (Variables)」ビューで変数を右クリックし、**"View as Matrix (2D Table)"** を選択。
+    * **コマンドパレットから:** (`Ctrl+Shift+P`) から `Matrix Viewer: View as Matrix` を実行し、変数名を入力（例: `grid`, `matrix[0]`）。
 
-## 📸 デモ (Demo)
+## 🛠 対応言語・環境
 
-> **Tips:** 表の下部にある `Load More Rows ▼` ボタンや、右上の `+` ボタンを押すことで、隠れているデータを追加で読み込むことができます。
+この拡張機能は、複数のサイズ取得戦略を総当りで試行するため、以下の言語を含む多くの環境で動作します。
 
-## 📋 要件 (Requirements)
+* **C / C++** (`std::vector`, 生配列)
+* **Python** (リスト, イテラブル)
+* **Rust** (`Vec`, 配列)
+* **JavaScript / TypeScript** (配列)
+* **C#** (List, 配列)
+* **Java** (List, 配列)
+* *その他、`.size()`, `len()`, `.length` 等でサイズが取得可能な言語*
 
-* VS Code 1.70.0 以上
-* C++ 拡張機能 (ms-vscode.cpptools) など、Debug Adapter Protocol に対応したデバッガ環境
+## ⚠️ 既知の制限
 
-## ⚠️ 既知の制限 (Known Issues)
-
-* **C++ 専用:** 現在のバージョンでは `std::vector` の `.size()` メソッド等を利用しているため、C++ 以外の言語（Python, JS等）では正しく動作しない可能性があります。
-* **多次元配列:** 3次元以上の配列には対応していません（2次元として表示、またはエラーになります）。
-* **単純な型のみ:** セルの中身として表示できるのは、数値や文字列などのプリミティブ型に限られます。複雑なオブジェクトは正しく表示されない場合があります。
+* **3次元以上の配列:** 現在のバージョンでは2次元までの表示に対応しています。3次元以上の配列は正しく表示されない、またはエラーになる可能性があります。
+* **オブジェクトの表示:** セルには値の文字列表現が表示されます。複雑なオブジェクトは、適切な文字列変換（ToString等）が定義されていない場合、`[Object object]` やメモリアドレスとして表示されることがあります。
 
 ## 📅 リリースノート (Release Notes)
 
 ### 1.0.0
-* Initial release
-* 2次元配列 (`int[][]`) および `std::vector<std::vector<int>>` の可視化に対応
+* Initial release (Matrix Viewerとして公開)
+* Python, Rust, JS, C# などの多言語対応を追加
+* Rust (`Vec`) のサイズ検出ロジックを強化
 * 巨大データに対応する遅延読み込み機能
 * ステップ実行時の自動更新と差分ハイライト機能
 
