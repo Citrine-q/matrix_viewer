@@ -1,5 +1,3 @@
-// src/matrixView.ts
-
 export function getLazyWebviewContent(varName: string) {
     return `<!DOCTYPE html>
 <html lang="en">

@@ -1,4 +1,3 @@
-// src/panelManager.ts
 import * as vscode from 'vscode';
 import { getLazyWebviewContent } from './matrixView';
 import { fetchFreshMatrixChunkWithDiff } from './debugAdapter';
