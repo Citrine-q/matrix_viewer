@@ -1,40 +1,51 @@
 {
   "name": "matrix-viewer",
-  "displayName": "matrix-viewer",
-  "description": "",
-  "version": "0.0.1",
+  "displayName": "C++ Matrix Viewer",
+  "publisher": "citrine",
+  "description": "Visualize C++ vectors and arrays as a 2D table",
+  "version": "1.0.0",
   "engines": {
-    "vscode": "^1.107.0"
+    "vscode": "^1.70.0"
   },
   "categories": [
-    "Other"
+    "Debuggers",
+    "Visualization"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onDebug"
+  ],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
       {
-        "command": "matrix-viewer.helloWorld",
-        "title": "Hello World"
+        "command": "matrix-viewer.viewMatrix",
+        "title": "View as Matrix (2D Table)"
       }
-    ]
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "matrix-viewer.viewMatrix",
+          "group": "navigation",
+          "when": "editorHasSelection"
+        }
+      ],
+      "debug/variables/context": [
+        {
+          "command": "matrix-viewer.viewMatrix",
+          "group": "navigation"
+        }
+      ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./",
-    "pretest": "npm run compile && npm run lint",
-    "lint": "eslint src",
-    "test": "vscode-test"
+    "watch": "tsc -watch -p ./"
   },
   "devDependencies": {
-    "@types/vscode": "^1.107.0",
-    "@types/mocha": "^10.0.10",
-    "@types/node": "22.x",
-    "typescript-eslint": "^8.48.1",
-    "eslint": "^9.39.1",
-    "typescript": "^5.9.3",
-    "@vscode/test-cli": "^0.0.12",
-    "@vscode/test-electron": "^2.5.2"
+    "@types/node": "^16.x",
+    "@types/vscode": "^1.70.0",
+    "typescript": "^4.7.4"
   }
 }

@@ -1,71 +1,53 @@
-# matrix-viewer README
+# C++ Matrix Viewer
 
-This is the README for your extension "matrix-viewer". After writing up a brief description, we recommend including the following sections.
+**C++ Matrix Viewer** は、VS Codeでのデバッグ中に、2次元配列や `std::vector<std::vector<T>>` をExcelのような**「2次元の表（グリッド）」**形式で可視化する拡張機能です。
 
-## Features
+標準の「変数ビュー」ではツリー構造で確認しづらい行列データも、このツールを使えば一目で全体像を把握できます。
 
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
+## ✨ 主な機能 (Features)
 
-For example if there is an image subfolder under your extension project workspace:
+* **⚡ 高速な描画 (Lazy Loading):**
+    * 必要な行・列だけを読み込む「遅延読み込み」を採用。
+    * **10,000行 x 10,000列** のような巨大なデータでも、フリーズすることなく瞬時に開けます。
+* **🔄 自動更新 & ハイライト:**
+    * デバッガでステップ実行（Step Over/Into）を行うと、表の内容が自動的にリフレッシュされます。
+    * **値が変化したセルは黄色くハイライト**されるため、アルゴリズムの挙動確認に最適です。
+* **👀 2画面分割:**
+    * コードエディタを隠さないよう、自動的に隣のパネル（Split View）で開きます。
+* **🛡️ 安全設計:**
+    * 配列の範囲外アクセスを防ぐリミット機能付き。(生配列は適応外)
 
-\!\[feature X\]\(images/feature-x.png\)
+## 🚀 使い方 (Usage)
 
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
+1. C++のデバッグセッションを開始し、ブレークポイントで停止させます。
+2. 以下のいずれかの方法でビューアを起動します：
+    * **方法A:** 「変数 (Variables)」ビューで変数を右クリックし、**"View as Matrix (2D Table)"** を選択。
+    * **方法B:** エディタ上の変数名を選択して右クリックし、**"View as Matrix (2D Table)"** を選択。
+    * **方法C:** コマンドパレット (`Ctrl+Shift+P`) から `C++ Matrix Viewer: View as Matrix` を実行し、変数名を入力。
 
-## Requirements
+## 📸 デモ (Demo)
 
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
+> **Tips:** 表の下部にある `Load More Rows ▼` ボタンや、右上の `+` ボタンを押すことで、隠れているデータを追加で読み込むことができます。
 
-## Extension Settings
+## 📋 要件 (Requirements)
 
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
+* VS Code 1.70.0 以上
+* C++ 拡張機能 (ms-vscode.cpptools) など、Debug Adapter Protocol に対応したデバッガ環境
 
-For example:
+## ⚠️ 既知の制限 (Known Issues)
 
-This extension contributes the following settings:
+* **C++ 専用:** 現在のバージョンでは `std::vector` の `.size()` メソッド等を利用しているため、C++ 以外の言語（Python, JS等）では正しく動作しない可能性があります。
+* **多次元配列:** 3次元以上の配列には対応していません（2次元として表示、またはエラーになります）。
+* **単純な型のみ:** セルの中身として表示できるのは、数値や文字列などのプリミティブ型に限られます。複雑なオブジェクトは正しく表示されない場合があります。
 
-* `myExtension.enable`: Enable/disable this extension.
-* `myExtension.thing`: Set to `blah` to do something.
-
-## Known Issues
-
-Calling out known issues can help limit users opening duplicate issues against your extension.
-
-## Release Notes
-
-Users appreciate release notes as you update your extension.
+## 📅 リリースノート (Release Notes)
 
 ### 1.0.0
-
-Initial release of ...
-
-### 1.0.1
-
-Fixed issue #.
-
-### 1.1.0
-
-Added features X, Y, and Z.
+* Initial release
+* 2次元配列 (`int[][]`) および `std::vector<std::vector<int>>` の可視化に対応
+* 巨大データに対応する遅延読み込み機能
+* ステップ実行時の自動更新と差分ハイライト機能
 
 ---
 
-## Following extension guidelines
-
-Ensure that you've read through the extensions guidelines and follow the best practices for creating your extension.
-
-* [Extension Guidelines](https://code.visualstudio.com/api/references/extension-guidelines)
-
-## Working with Markdown
-
-You can author your README using Visual Studio Code. Here are some useful editor keyboard shortcuts:
-
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux).
-* Toggle preview (`Shift+Cmd+V` on macOS or `Shift+Ctrl+V` on Windows and Linux).
-* Press `Ctrl+Space` (Windows, Linux, macOS) to see a list of Markdown snippets.
-
-## For more information
-
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
-
-**Enjoy!**
+**Enjoy debugging!**
