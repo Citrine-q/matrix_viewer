@@ -3,7 +3,7 @@
   "displayName": "Matrix Viewer",
   "description": "Visualize 2D arrays and matrices (C++, Python, Rust, JS, etc.) as a table during debugging.",
   "version": "1.0.0",
-  "publisher": "myname", 
+  "publisher": "citrine", 
   "engines": {
     "vscode": "^1.70.0"
   },

@@ -1,27 +1,24 @@
 import * as vscode from 'vscode';
 
-// セルのデータ構造
 export interface CellData {
     value: string;
     changed: boolean;
 }
 
-// データ取得結果の型
 export interface FetchResult {
     data: CellData[][];
     rows: number | null;
     cols: number | null;
+    maxRowLength: number;
 }
 
-/**
- * 指定範囲のデータを取得し、スナップショットと比較して差分を検知する関数
- */
 export async function fetchFreshMatrixChunkWithDiff(
     session: vscode.DebugSession,
     varName: string,
     rowStart: number, rowCount: number,
     colStart: number, colCount: number,
-    snapshot: Map<string, string>
+    snapshot: Map<string, string>,
+    rowSizeCache: Map<number, number> // ★追加: 行サイズのキャッシュ
 ): Promise<FetchResult> {
     
     // 1. スレッド・フレーム特定
@@ -36,56 +33,22 @@ export async function fetchFreshMatrixChunkWithDiff(
     // 2. 変数再評価
     const topVar = await session.customRequest('evaluate', { expression: varName, frameId, context: 'watch' });
 
-    // -----------------------------------------------------
-    // 3. 多言語対応: サイズ取得ロジック (強化版)
-    // -----------------------------------------------------
+    // 3. 全体のサイズ取得
     let totalRows: number | null = null;
     let totalCols: number | null = null;
 
-    // A. デバッガが要素数(indexedVariables)を教えてくれる場合 (最優先)
     if (topVar.indexedVariables && topVar.indexedVariables > 0) {
         totalRows = topVar.indexedVariables;
     } 
-    
-    // B. Rust対応: "result" 文字列 (例: "Vec(size=5)") からパースする (★新規追加)
-    // CodeLLDBなどのRustデバッガは、indexedVariablesを返さなくてもresultにサイズを書くことが多い
     if (totalRows === null && topVar.result) {
-        const match = topVar.result.match(/(?:size|len|count)\s*=\s*(\d+)/i);
-        if (match) {
-            totalRows = parseInt(match[1]);
-        }
+        const match = topVar.result.match(/(?:size|len|count|Length)(?:\s*[:=]\s*|\s+)(\d+)/i);
+        if (match) totalRows = parseInt(match[1]);
     }
-
-    // C. それでもダメなら総当りコマンド実行
     if (totalRows === null) {
         totalRows = await evalSize(session, frameId, varName);
     }
 
-    // --- 列数の取得 ---
-    if (totalRows && totalRows > 0) {
-        try {
-            const row0Name = `${varName}[0]`;
-            const row0 = await session.customRequest('evaluate', { expression: row0Name, frameId, context: 'watch' });
-            
-            if (row0.indexedVariables) {
-                totalCols = row0.indexedVariables;
-            } else if (row0.result) {
-                 // 列側も正規表現チェック
-                 const match = row0.result.match(/(?:size|len|count)\s*=\s*(\d+)/i);
-                 if (match) totalCols = parseInt(match[1]);
-            }
-            
-            if (totalCols === null) {
-                totalCols = await evalSize(session, frameId, row0Name);
-            }
-        } catch (e) { /* 列数不明は無視 */ }
-    }
-
-    // -----------------------------------------------------
-    // 4. データ取得
-    // -----------------------------------------------------
-    
-    // 行データの取得
+    // 4. 行リストの取得
     const rowResp = await session.customRequest('variables', {
         variablesReference: topVar.variablesReference,
         start: rowStart, count: rowCount
@@ -97,27 +60,80 @@ export async function fetchFreshMatrixChunkWithDiff(
         rawRows = rawRows.slice(rowStart, end);
     }
 
-    // 各行の中身(列)を取得し、差分を検知する
-    const resolvedRows: CellData[][] = await Promise.all(rawRows.map(async (row: any, rowIndexRel: number) => {
-        const currentRowIndex = rowStart + rowIndexRel;
+    let maxRowLengthInChunk = 0;
 
-        let rawCols: any[] = [];
-        if (row.variablesReference > 0) {
-            const colsResp = await session.customRequest('variables', {
-                variablesReference: row.variablesReference,
-                start: colStart, count: colCount
-            });
-            rawCols = colsResp.variables || [];
-            if (rawCols.length > colCount) {
-                const end = Math.min(colStart + colCount, rawCols.length);
-                rawCols = rawCols.slice(colStart, end);
-            }
+    // 5. 各行の中身(列)を取得
+    const resolvedRows: CellData[][] = await Promise.all(rawRows.map(async (row: any, rowIndexRel: number) => {
+        
+        let thisRowSize: number | null = null;
+
+        // ★キャッシュチェック
+        // variablesReference > 0 (プリミティブでない) 場合のみキャッシュ有効
+        if (row.variablesReference > 0 && rowSizeCache.has(row.variablesReference)) {
+            thisRowSize = rowSizeCache.get(row.variablesReference)!;
         } else {
-            rawCols = [row];
+            // キャッシュになければ計算する
+            
+            // A. 軽量チェック
+            thisRowSize = getRowSize(row);
+
+            // B. 重量チェック (evalSize)
+            if (thisRowSize === null && row.variablesReference > 0) {
+                let rowExpr = "";
+                if (row.name.startsWith("[")) {
+                    rowExpr = `${varName}${row.name}`;
+                } else {
+                    rowExpr = `${varName}[${row.name}]`;
+                }
+                thisRowSize = await evalSize(session, frameId, rowExpr);
+            }
+
+            // ★結果をキャッシュに保存
+            if (thisRowSize !== null && row.variablesReference > 0) {
+                rowSizeCache.set(row.variablesReference, thisRowSize);
+            }
+        }
+
+        // maxRowLengthの更新
+        if (thisRowSize !== null && thisRowSize > maxRowLengthInChunk) {
+            maxRowLengthInChunk = thisRowSize;
+        }
+
+        // 境界チェック (サイズが確定していて範囲外ならリクエストしない)
+        if (thisRowSize !== null && colStart >= thisRowSize) {
+            return [];
+        }
+
+        // プリミティブ型
+        if (row.variablesReference === 0) {
+            if (colStart === 0) {
+                const val = row.value || "null";
+                const cellKey = `${rowStart + rowIndexRel}:${colStart}`;
+                let changed = false;
+                if (snapshot.has(cellKey) && snapshot.get(cellKey) !== val) changed = true;
+                snapshot.set(cellKey, val);
+                return [{ value: val, changed }];
+            } else {
+                return [];
+            }
+        }
+
+        // データ取得リクエスト
+        let rawCols: any[] = [];
+        const colsResp = await session.customRequest('variables', {
+            variablesReference: row.variablesReference,
+            start: colStart, count: colCount
+        });
+        rawCols = colsResp.variables || [];
+        
+        if (rawCols.length > colCount) {
+            const end = Math.min(colStart + colCount, rawCols.length);
+            rawCols = rawCols.slice(colStart, end);
         }
 
         return rawCols.map((c: any, colIndexRel: number) => {
             const currentColIndex = colStart + colIndexRel;
+            const currentRowIndex = rowStart + rowIndexRel;
             const cellKey = `${currentRowIndex}:${currentColIndex}`;
             const newValue = c.value || "null";
             
@@ -135,43 +151,35 @@ export async function fetchFreshMatrixChunkWithDiff(
     return {
         data: resolvedRows,
         rows: totalRows,
-        cols: totalCols
+        cols: totalCols,
+        maxRowLength: maxRowLengthInChunk
     };
 }
 
-/**
- * 言語判定を行わず、あらゆる可能性のあるサイズ取得コマンドを順番に試す関数
- */
-async function evalSize(session: vscode.DebugSession, frameId: number, expression: string): Promise<number | null> {
-    
-    // 試行するパターンのリスト (Rust対応強化)
-    const candidates = [
-        `${expression}.size()`,  // C++
-        `len(${expression})`,    // Python
-        `${expression}.len()`,   // Rust (メソッド)
-        `${expression}.len`,     // ★Rust (フィールドアクセス - 括弧なし)
-        `${expression}.length`,  // JS/TS
-        `${expression}.Count`,   // C#
-        `${expression}.Length`,  // C#
-        `sizeof(${expression})/sizeof(${expression}[0])` // C/C++ Raw Array
-    ];
+function getRowSize(row: any): number | null {
+    if (typeof row.indexedVariables === 'number' && row.indexedVariables > 0) {
+        return row.indexedVariables;
+    }
+    if (row.result) {
+        const match = row.result.match(/(?:size|len|count|Length)(?:\s*[:=]\s*|\s+)(\d+)/i);
+        if (match) return parseInt(match[1]);
+        const arrayMatch = row.result.match(/\[(\d+)\]/);
+        if (arrayMatch) return parseInt(arrayMatch[1]);
+    }
+    return null;
+}
 
+async function evalSize(session: vscode.DebugSession, frameId: number, expression: string): Promise<number | null> {
+    const candidates = [
+        `${expression}.size()`, `len(${expression})`, `${expression}.len()`, `${expression}.len`,
+        `${expression}.length`, `${expression}.Count`, `${expression}.Length`
+    ];
     for (const expr of candidates) {
         try {
-            const res = await session.customRequest('evaluate', { 
-                expression: expr, 
-                frameId, 
-                context: 'watch' 
-            });
-
+            const res = await session.customRequest('evaluate', { expression: expr, frameId, context: 'watch' });
             const val = parseInt(res.result);
-            if (!isNaN(val)) {
-                return val;
-            }
-        } catch (e) {
-            // 無視して次へ
-        }
+            if (!isNaN(val)) return val;
+        } catch (e) {}
     }
-    
     return null;
 }

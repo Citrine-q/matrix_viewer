@@ -7,26 +7,47 @@ export function getLazyWebviewContent(varName: string) {
         body { font-family: var(--vscode-font-family); background-color: var(--vscode-editor-background); color: var(--vscode-editor-foreground); margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
         #header { padding: 8px 12px; background: var(--vscode-editorGroupHeader-tabsBackground); border-bottom: 1px solid var(--vscode-panel-border); flex-shrink: 0; display: flex; justify-content: space-between; align-items: center; }
         #container { flex-grow: 1; overflow: auto; position: relative; padding: 10px; padding-bottom: 50px; }
+        
+        /* テーブルレイアウトを固定 */
         table { border-collapse: separate; border-spacing: 0; table-layout: fixed; }
-        th, td { border: 1px solid var(--vscode-panel-border); padding: 4px 8px; text-align: center; white-space: nowrap; height: 24px; min-width: 40px; max-width: 200px; overflow: hidden; text-overflow: ellipsis; box-sizing: border-box; }
+        
+        /* セルのスタイル */
+        th, td { 
+            border: 1px solid var(--vscode-panel-border); 
+            padding: 4px 8px; text-align: center; white-space: nowrap; 
+            height: 24px; 
+            min-width: 40px; max-width: 200px; 
+            overflow: hidden; text-overflow: ellipsis; 
+            box-sizing: border-box; 
+        }
+        
+        /* 空のセル (ジャグ配列の埋め合わせ用) */
+        td.empty-cell { background-color: var(--vscode-editor-inactiveSelectionBackground); opacity: 0.3; }
+
+        /* ヘッダー固定 */
         thead th { position: sticky; top: 0; z-index: 10; background-color: var(--vscode-editor-inactiveSelectionBackground); box-shadow: 0 1px 0 var(--vscode-panel-border); }
         tbody th { position: sticky; left: 0; z-index: 5; background-color: var(--vscode-editor-inactiveSelectionBackground); color: var(--vscode-descriptionForeground); box-shadow: 1px 0 0 var(--vscode-panel-border); }
         thead th:first-child { left: 0; z-index: 20; background-color: var(--vscode-editor-inactiveSelectionBackground); }
         
-        /* 更新ハイライト用アニメーション */
-        .updated { animation: flash 1.5s ease-out; font-weight: bold; }
-        @keyframes flash { 
-            0% { background-color: rgba(255, 255, 0, 0.7); color: black; } 
-            100% { background-color: transparent; } 
+        /* 追加ボタンを右端に固定 */
+        .col-add-btn { 
+            cursor: pointer; font-weight: bold; color: var(--vscode-textLink-foreground); 
+            position: sticky; right: 0; z-index: 20; 
+            background-color: var(--vscode-editor-inactiveSelectionBackground);
+            box-shadow: -1px 0 0 var(--vscode-panel-border); 
+            min-width: 30px; /* クリックしやすいように幅確保 */
         }
+        .col-add-btn.hidden { display: none; }
+
+        .updated { animation: flash 1.5s ease-out; font-weight: bold; }
+        @keyframes flash { 0% { background-color: rgba(255, 255, 0, 0.7); color: black; } 100% { background-color: transparent; } }
 
         .btn { background-color: var(--vscode-button-background); color: var(--vscode-button-foreground); border: none; padding: 6px 14px; cursor: pointer; font-size: 12px; border-radius: 2px; }
         .btn:hover { background-color: var(--vscode-button-hoverBackground); }
         .btn:disabled { opacity: 0.6; cursor: not-allowed; }
         #loadRowBtn { display: block; width: 100%; margin-top: 15px; padding: 8px; background: var(--vscode-editorWidget-background); border: 1px dashed var(--vscode-panel-border); color: var(--vscode-foreground); }
         #loadRowBtn:hover { background: var(--vscode-list-hoverBackground); }
-        .col-add-btn { cursor: pointer; font-weight: bold; color: var(--vscode-textLink-foreground); }
-        .col-add-btn.hidden { display: none; }
+        
         .icon-btn { background: none; border: none; color: var(--vscode-icon-foreground); cursor: pointer; padding: 4px; margin-left: 8px; font-size: 16px; }
         .icon-btn:hover { color: var(--vscode-foreground); background-color: var(--vscode-toolbar-hoverBackground); border-radius: 4px; }
         #overlay { position: absolute; top:0; left:0; right:0; bottom:0; background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 100; color: white; font-weight: bold;}
@@ -58,7 +79,12 @@ export function getLazyWebviewContent(varName: string) {
         const COL_BATCH = 10;
         
         let loadedRows = 0; let loadedCols = 0; let isLoading = false;
-        let totalRows = null; let totalCols = null;
+        let totalRows = null; 
+        
+        // ★重要: ジャグ配列では totalCols は「現在わかっている最大幅」程度の意味しか持たないので
+        // ボタン制御の厳密な判定には使わない方針にします（isEndOfColsフラグで管理）
+        let totalCols = null; 
+        let isEndOfCols = false; 
 
         const tableHead = document.getElementById('tableHead');
         const tableBody = document.getElementById('tableBody');
@@ -81,11 +107,11 @@ export function getLazyWebviewContent(varName: string) {
         }
 
         function fetchMoreCols() {
-            if (isLoading || loadedRows === 0) return;
-            if (totalCols !== null && loadedCols >= totalCols) return;
+            if (isLoading || loadedRows === 0 || isEndOfCols) return;
+            
             setLoading(true);
+            // 列の終わりがわからないので、とりあえず固定数バッチでリクエストする
             let count = COL_BATCH;
-            if (totalCols !== null) count = Math.min(COL_BATCH, totalCols - loadedCols);
             vscode.postMessage({
                 command: 'fetchChunk', mode: 'cols',
                 rowStart: 0, rowCount: loadedRows,
@@ -98,7 +124,8 @@ export function getLazyWebviewContent(varName: string) {
             tableHead.innerHTML = '';
             tableBody.innerHTML = '';
             loadedRows = 0;
-            loadedCols = 0; 
+            loadedCols = 0;
+            isEndOfCols = false;
             fetchMoreRows();
         }
         function manualReload() { reloadView(); }
@@ -109,31 +136,62 @@ export function getLazyWebviewContent(varName: string) {
             if (msg.command === 'appendData') {
                 overlay.style.display = 'none';
                 const matrix = msg.data;
-                totalRows = msg.totalRows || null;
-                totalCols = msg.totalCols || null;
+                
+                if (msg.totalRows !== null) totalRows = msg.totalRows;
+                if (msg.totalCols !== null) totalCols = msg.totalCols; // 参考情報として保持
+
                 updateSizeInfo();
 
+                // --- 描画ロジック ---
                 if (msg.mode === 'rows') {
                     if (matrix.length > 0) {
-                        if (loadedRows === 0) {
-                            if (loadedCols === 0) loadedCols = matrix[0].length;
+                        // 今回のチャンクでの最大幅
+                        const chunkMaxLen = matrix.reduce((max, row) => Math.max(max, row.length), 0);
+
+                        // 初回
+                        if (loadedRows === 0 && loadedCols === 0) {
+                            loadedCols = chunkMaxLen > 0 ? chunkMaxLen : 0;
                             renderHeader(loadedCols);
                         }
-                        appendRowsToTable(matrix, msg.rowStart);
+                        // 既存より長い行が来たら拡張
+                        else if (chunkMaxLen > loadedCols) {
+                            const diff = chunkMaxLen - loadedCols;
+                            updateHeader(loadedCols, diff);
+                            // 既存行の右側を埋める
+                            fillExistingRows(diff);
+                            loadedCols = chunkMaxLen;
+                            isEndOfCols = false; // 幅が広がったのでボタン復活
+                        }
+
+                        // 行を追加 (不足分は空白埋めされる)
+                        appendRowsToTable(matrix, msg.rowStart, loadedCols);
                         loadedRows += matrix.length;
                     }
                 } else if (msg.mode === 'cols') {
-                    if (matrix.length > 0 && matrix[0].length > 0) {
-                        const newCount = matrix[0].length;
-                        updateHeader(loadedCols, newCount);
-                        appendColsToTable(matrix);
-                        loadedCols += newCount;
+                    // 今回取得したデータの中で、最大の幅を持つ行を探す
+                    let chunkWidth = 0;
+                    if (matrix.length > 0) {
+                        chunkWidth = matrix.reduce((max, row) => Math.max(max, row.length), 0);
+                    }
+                    
+                    if (chunkWidth > 0) {
+                        updateHeader(loadedCols, chunkWidth);
+                        appendColsToTable(matrix, chunkWidth);
+                        loadedCols += chunkWidth;
+                        // まだデータがあったので、まだ終わりじゃないと仮定
+                        isEndOfCols = false;
+                    } else {
+                        // 全行が空配列だった = ここが世界の果て
+                        isEndOfCols = true;
                     }
                 }
+                
                 setLoading(false);
                 checkLimits();
             }
         });
+
+        // --- DOM Helpers ---
 
         function renderHeader(count) {
             let html = '<tr><th>#</th>';
@@ -152,31 +210,63 @@ export function getLazyWebviewContent(varName: string) {
             }
         }
 
-        function appendRowsToTable(matrix, startIdx) {
+        // 既存の行に対して、右側に空セルを追加して長方形を保つ
+        function fillExistingRows(count) {
+            const trs = tableBody.querySelectorAll('tr');
+            trs.forEach(tr => {
+                for(let k=0; k<count; k++) {
+                    const td = document.createElement('td');
+                    td.className = 'empty-cell'; // グレーアウト
+                    tr.appendChild(td);
+                }
+            });
+        }
+
+        // 行を追加する (targetCols幅になるように埋める)
+        function appendRowsToTable(matrix, startIdx, targetCols) {
             const frag = document.createDocumentFragment();
             matrix.forEach((row, i) => {
                 const tr = document.createElement('tr');
                 let html = \`<th>[\${startIdx + i}]</th>\`;
-                html += row.map(cell => {
+                
+                // データがある部分
+                row.forEach(cell => {
                     const cls = cell.changed ? 'updated' : '';
-                    return \`<td class="\${cls}">\${cell.value}</td>\`;
-                }).join('');
+                    html += \`<td class="\${cls}">\${cell.value}</td>\`;
+                });
+
+                // データが足りない部分 (targetColsに満たない分) を空セルで埋める
+                const missing = targetCols - row.length;
+                for(let k=0; k<missing; k++) {
+                    html += \`<td class="empty-cell"></td>\`;
+                }
+
                 tr.innerHTML = html;
                 frag.appendChild(tr);
             });
             tableBody.appendChild(frag);
         }
 
-        function appendColsToTable(matrix) {
+        // 列を追加する (全行に対して chunkWidth 分だけ追加する)
+        function appendColsToTable(matrix, chunkWidth) {
             const trs = tableBody.querySelectorAll('tr');
             trs.forEach((tr, i) => {
-                if(matrix[i]) {
-                    matrix[i].forEach(cell => {
-                        const td = document.createElement('td');
-                        if (cell.changed) { td.className = 'updated'; }
-                        td.innerText = cell.value;
-                        tr.appendChild(td);
-                    });
+                const rowData = matrix[i] || []; // Backendからデータが来てない行は空
+                
+                // データがある分
+                rowData.forEach(cell => {
+                    const td = document.createElement('td');
+                    if (cell.changed) { td.className = 'updated'; }
+                    td.innerText = cell.value;
+                    tr.appendChild(td);
+                });
+
+                // データが足りない分 (短い行) を空セルで埋める
+                const missing = chunkWidth - rowData.length;
+                for(let k=0; k<missing; k++) {
+                    const td = document.createElement('td');
+                    td.className = 'empty-cell';
+                    tr.appendChild(td);
                 }
             });
         }
@@ -187,9 +277,11 @@ export function getLazyWebviewContent(varName: string) {
             } else {
                 loadRowBtn.innerText = "Load More Rows ▼"; loadRowBtn.disabled = false;
             }
+            
             const btn = document.querySelector('.col-add-btn');
             if(btn) {
-                if(totalCols !== null && loadedCols >= totalCols) btn.classList.add('hidden');
+                // 明確に行き止まり(isEndOfCols)とわかった場合のみ消す
+                if(isEndOfCols) btn.classList.add('hidden');
                 else btn.classList.remove('hidden');
             }
         }

@@ -2,18 +2,16 @@ import * as vscode from 'vscode';
 import { getLazyWebviewContent } from './matrixView';
 import { fetchFreshMatrixChunkWithDiff } from './debugAdapter';
 
-// パネル情報
 interface PanelEntry {
     panel: vscode.WebviewPanel;
     varName: string;
-    // キー: "行インデックス:列インデックス", 値: 変数の値(文字列)
     snapshot: Map<string, string>;
+    rowSizeCache: Map<number, number>; // ★追加
 }
 
 export class PanelManager {
     private activePanels: PanelEntry[] = [];
 
-    // パネルを新規作成する
     public createPanel(session: vscode.DebugSession, variableName: string) {
         const panel = vscode.window.createWebviewPanel(
             'matrixViewer',
@@ -22,7 +20,12 @@ export class PanelManager {
             { enableScripts: true, retainContextWhenHidden: true }
         );
 
-        const panelEntry: PanelEntry = { panel, varName: variableName, snapshot: new Map() };
+        const panelEntry: PanelEntry = { 
+            panel, 
+            varName: variableName, 
+            snapshot: new Map(),
+            rowSizeCache: new Map() // ★初期化
+        };
         this.activePanels.push(panelEntry);
 
         panel.onDidDispose(() => {
@@ -30,14 +33,11 @@ export class PanelManager {
             if (index > -1) this.activePanels.splice(index, 1);
         });
 
-        // HTML設定
         panel.webview.html = getLazyWebviewContent(variableName);
 
-        // メッセージ受信
         panel.webview.onDidReceiveMessage(async (message) => {
             if (message.command === 'fetchChunk') {
                 try {
-                    // DebugAdapter にデータ取得を依頼
                     const result = await fetchFreshMatrixChunkWithDiff(
                         session,
                         variableName,
@@ -45,10 +45,10 @@ export class PanelManager {
                         message.rowCount,
                         message.colStart,
                         message.colCount,
-                        panelEntry.snapshot
+                        panelEntry.snapshot,
+                        panelEntry.rowSizeCache // ★渡す
                     );
 
-                    // 結果をWebViewに返す
                     panel.webview.postMessage({
                         command: 'appendData',
                         mode: message.mode,
@@ -56,7 +56,8 @@ export class PanelManager {
                         rowStart: message.rowStart,
                         colStart: message.colStart,
                         totalRows: result.rows,
-                        totalCols: result.cols
+                        totalCols: result.cols,
+                        maxRowLength: result.maxRowLength
                     });
                 } catch (e) {
                     console.error('Fetch error:', e);
@@ -64,23 +65,22 @@ export class PanelManager {
             }
         });
 
-        // 初回ロード
         this.refreshPanel(session, panelEntry);
     }
 
-    // 全パネルを更新
     public async refreshAll(session: vscode.DebugSession) {
         for (const entry of this.activePanels) {
             await this.refreshPanel(session, entry);
         }
     }
 
-    // 特定のパネルに更新指示を送る
     private async refreshPanel(session: vscode.DebugSession, entry: PanelEntry) {
+        // ステップ実行などで更新された場合、キャッシュをクリアするかどうかは選択肢ですが
+        // variablesReferenceが変わればキャッシュはヒットしないので、そのままでも問題ありません。
+        // もし厳密にやるならここで entry.rowSizeCache.clear() を呼んでも良いです。
         entry.panel.webview.postMessage({ command: 'refreshSignal' });
     }
     
-    // 全パネルを破棄（終了時など）
     public dispose() {
         this.activePanels.forEach(p => p.panel.dispose());
         this.activePanels = [];
