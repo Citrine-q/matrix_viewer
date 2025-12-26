@@ -222,20 +222,21 @@ export function getLazyWebviewContent(varName: string) {
             });
         }
 
-        // 行を追加する (targetCols幅になるように埋める)
+        // 行を追加する関数
         function appendRowsToTable(matrix, startIdx, targetCols) {
             const frag = document.createDocumentFragment();
             matrix.forEach((row, i) => {
                 const tr = document.createElement('tr');
                 let html = \`<th>[\${startIdx + i}]</th>\`;
                 
-                // データがある部分
                 row.forEach(cell => {
                     const cls = cell.changed ? 'updated' : '';
-                    html += \`<td class="\${cls}">\${cell.value}</td>\`;
+                    // ★修正: title属性に値をセットしてホバーで見えるようにする
+                    // 値の中にダブルクォートがあると崩れるのでエスケープ処理(簡易)を入れる
+                    const safeValue = (cell.value || "").replace(/"/g, '&quot;');
+                    html += \`<td class="\${cls}" title="\${safeValue}">\${cell.value}</td>\`;
                 });
 
-                // データが足りない部分 (targetColsに満たない分) を空セルで埋める
                 const missing = targetCols - row.length;
                 for(let k=0; k<missing; k++) {
                     html += \`<td class="empty-cell"></td>\`;
@@ -247,21 +248,21 @@ export function getLazyWebviewContent(varName: string) {
             tableBody.appendChild(frag);
         }
 
-        // 列を追加する (全行に対して chunkWidth 分だけ追加する)
+        // 列を追加する関数
         function appendColsToTable(matrix, chunkWidth) {
             const trs = tableBody.querySelectorAll('tr');
             trs.forEach((tr, i) => {
-                const rowData = matrix[i] || []; // Backendからデータが来てない行は空
+                const rowData = matrix[i] || [];
                 
-                // データがある分
                 rowData.forEach(cell => {
                     const td = document.createElement('td');
                     if (cell.changed) { td.className = 'updated'; }
+                    // ★修正: title属性を追加
+                    td.title = cell.value; 
                     td.innerText = cell.value;
                     tr.appendChild(td);
                 });
 
-                // データが足りない分 (短い行) を空セルで埋める
                 const missing = chunkWidth - rowData.length;
                 for(let k=0; k<missing; k++) {
                     const td = document.createElement('td');
