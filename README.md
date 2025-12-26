@@ -1,5 +1,6 @@
 # Matrix Viewer
 日本語は下にあります
+
 **Matrix Viewer** is a powerful debugging visualization tool for VS Code. It allows you to inspect 2D arrays, matrices, vectors, and jagged arrays as a **Grid / Spreadsheet** instead of the standard tree view.
 
 It supports multiple languages including **C++, Python, Rust, JavaScript/TypeScript, C#**, and automatically handles large datasets with lazy loading.
